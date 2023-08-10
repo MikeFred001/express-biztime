@@ -14,8 +14,9 @@ router.get('/', async function(req, res, next) {
     SELECT code, name, description
       FROM companies
   `);
-
+//TODO: change for consistency, include ORDER BY
   return res.json({companies: results.rows});
+
 });
 
 
@@ -37,6 +38,7 @@ router.get('/:code', async function(req, res, next) {
   if (!company) throw new NotFoundError(`No matching company: ${code}`);
 
   return res.json({ company });
+
 });
 
 
@@ -57,6 +59,7 @@ router.post('/', async function(req, res, next) {
   const company = results.rows[0];
 
   return res.status(201).json({ company });
+
 });
 
 /** edits existing company. returns a 404 if company cannot be found.
@@ -84,7 +87,6 @@ router.put('/:code', async function(req, res, next) {
 
   return res.json({company});
 
-
 });
 
 
@@ -106,6 +108,7 @@ router.delete('/:code', async function(req, res, next) {
   if (!company) throw new NotFoundError(`No matching company: ${code}`);
 
   return res.json({status: "Deleted!"})
+
 });
 
 
