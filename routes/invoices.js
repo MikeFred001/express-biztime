@@ -10,101 +10,121 @@ const router = express.Router();
 
 router.get('/', async function(req, res, next) {
   const results = await db.query(`
-    SELECT code, name, description
-      FROM companies
+    SELECT id, comp_code, amt
+      FROM invoices
+      ORDER BY id
   `);
 
-  return res.json({companies: results.rows});
+  const invoices = results.rows;
+
+  return res.json({ invoices });
 
 });
 
 
-/** return obj of company: {company: {code, name, description}},
+/** return JSON for invoice:
+ *  { invoice: {code, name, description} company: {code, name, description}},
  * return a 404 status if the company cannot be found.
  */
 
-router.get('/:code', async function(req, res, next) {
-  const code = req.params.code;
+router.get('/:id', async function(req, res, next) {
+  const id = req.params.id;
 
-  const results = await db.query(`
-    SELECT code, name, description
-      FROM companies
-      WHERE code = $1
-  `, [code]);
+  const iResults = await db.query(`
+    SELECT id, amt, paid, add_date, paid_date
+      FROM invoices AS i
+        JOIN companies AS c ON i.comp_code = c.code
+      WHERE id = $1
+  `, [id]);
 
-  const company = results.rows[0];
+  const cResults = await db.query(`
+    SELECT c.code, c.name, c.description
+      FROM invoices AS i
+        JOIN companies AS c ON i.comp_code = c.code
+      WHERE id = $1
+  `, [id]);
 
-  if (!company) throw new NotFoundError(`No matching company: ${code}`);
+  const company = cResults.rows[0];
+  const invoice = iResults.rows[0];
 
-  return res.json({ company });
+  if (invoice === undefined) {
+    throw new NotFoundError(`No matching invoice: ${id}`)
+  };
+
+  return res.json({ invoice, company });
 
 });
 
 
-/** adds a company, needs to give JSON like: {code, name, description}
- * returns obj of new company: {company: {code, name, description}}
+/** adds an invoice, needs to give JSON like: {comp_code, amt}
+ * returns JSON for new invoice:
+ *  { invoice: {id, comp_code, amt, paid, add_date, paid_date} }
  */
 
 router.post('/', async function(req, res, next) {
   if (req.body === undefined) throw new BadRequestError();
-  const { code, name, description } = req.body;
+
+  const compCode = req.body.comp_code;
+  const amt = req.body.amt;
 
   const results = await db.query(
-    `INSERT INTO companies (code, name, description)
-         VALUES ($1, $2, $3)
-         RETURNING code, name, description`,
-    [code, name, description]);
+    `INSERT INTO invoices (comp_code, amt)
+         VALUES ($1, $2)
+         RETURNING id, comp_code, amt, paid, add_date, paid_date`,
+         [compCode, amt]
+  );
 
-  const company = results.rows[0];
+  const invoice = results.rows[0];
 
-  return res.status(201).json({ company });
+  return res.status(201).json({ invoice });
 
 });
 
-/** edits existing company. returns a 404 if company cannot be found.
- * needs to give JSON like: {name, description}
- * returns updated company object: {company: {code, name, description}}
+/** edits existing invoice. returns a 404 if company cannot be found.
+ * needs to give JSON like: { amt }
+ * returns updated invoice JSON:
+ *  { invoice: {id, comp_code, amt, paid, add_date, paid_date} }
  */
 
-router.put('/:code', async function(req, res, next) {
+router.put('/:id', async function(req, res, next) {
   if (req.body === undefined) throw new BadRequestError();
 
-  const {name, description } = req.body;
-  const code = req.params.code;
+  const id = +req.params.id;
+  const amt = req.body.amt;
 
   const results = await db.query(
-    `UPDATE companies
-        SET name = $1, description = $2
-        WHERE code = $3
-        RETURNING code, name, description`,
-        [name, description, code]
+    `UPDATE invoices
+        SET amt = $1
+        WHERE id = $2
+        RETURNING id, comp_code, amt, paid, add_date, paid_date`,
+        [amt, id]
   )
 
-  const company = results.rows[0];
+  const invoice = results.rows[0];
 
-  if (!company) throw new NotFoundError(`No matching company: ${code}`);
+  if (invoice === undefined) throw new NotFoundError(`No matching invoice: ${id}`);
 
-  return res.json({company});
+  return res.json({ invoice });
 
 });
 
 
-/** deletes company. should return 404 if company cannot be found.
- * returns {status: "deleted"} */
+/** deletes invoice. should return 404 if invoice cannot be found.
+ * returns JSON: { status: "deleted" } */
 
-router.delete('/:code', async function(req, res, next) {
+router.delete('/:id', async function(req, res, next) {
 
-  const code = req.params.code;
+  const id = req.params.id;
 
-  const results = await db.query(
-    `DELETE FROM companies
-    WHERE code = $1
-    RETURNING code, name, description`,
-    [code]
+  const results = await db.query(`
+    DELETE FROM invoices
+    WHERE id = $1
+    RETURNING id, comp_code, amt, paid, add_date, paid_date`,
+    [id]
   )
-  const company = results.rows[0];
+  const invoice = results.rows[0];
 
-  if (!company) throw new NotFoundError(`No matching company: ${code}`);
+  if (invoice === undefined) throw new NotFoundError(`No matching invoice: ${id}`);
 
   return res.json({status: "Deleted!"})
 

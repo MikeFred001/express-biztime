@@ -13,29 +13,43 @@ router.get('/', async function(req, res, next) {
   const results = await db.query(`
     SELECT code, name, description
       FROM companies
+      ORDER BY name
   `);
-//TODO: change for consistency, include ORDER BY
-  return res.json({companies: results.rows});
+  const companies = results.rows;
+
+  return res.json({companies});
 
 });
 
 
-/** return obj of company: {company: {code, name, description}},
+/** return obj of company and it's related invoices:
+ * {company: {code, name, description, invoices: [id, ...]}}
  * return a 404 status if the company cannot be found.
  */
 
 router.get('/:code', async function(req, res, next) {
   const code = req.params.code;
 
-  const results = await db.query(`
+  const cResults = await db.query(`
     SELECT code, name, description
       FROM companies
-      WHERE code = $1
-  `, [code]);
+      WHERE code = $1`,
+      [code]
+  );
 
-  const company = results.rows[0];
+  const iResults = await db.query(`
+    SELECT c.code, c.name, c.description, i.id
+      FROM invoices AS i
+        JOIN companies AS c ON i.comp_code = c.code
+        WHERE i.comp_code = $1`,
+        [code]
+  );
 
-  if (!company) throw new NotFoundError(`No matching company: ${code}`);
+  const invoices = iResults.rows.map(r => r.id);
+  const company = cResults.rows[0];
+  company.invoices = invoices;
+
+  if (company === undefined) throw new NotFoundError(`No matching company: ${code}`);
 
   return res.json({ company });
 
@@ -83,9 +97,11 @@ router.put('/:code', async function(req, res, next) {
 
   const company = results.rows[0];
 
-  if (!company) throw new NotFoundError(`No matching company: ${code}`);
+  if (company === undefined) {
+    throw new NotFoundError(`No matching company: ${code}`);
+  }
 
-  return res.json({company});
+  return res.json({ company });
 
 });
 
@@ -97,12 +113,13 @@ router.delete('/:code', async function(req, res, next) {
 
   const code = req.params.code;
 
-  const results = await db.query(
-    `DELETE FROM companies
+  const results = await db.query(`
+    DELETE FROM companies
     WHERE code = $1
     RETURNING code, name, description`,
     [code]
   )
+
   const company = results.rows[0];
 
   if (!company) throw new NotFoundError(`No matching company: ${code}`);
