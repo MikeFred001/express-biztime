@@ -7,10 +7,10 @@ const { BadRequestError, NotFoundError } = require("../expressError");
 
 const router = express.Router();
 
-
+// Returns JSON for all invoices { invoices: {id, comp_code}, {}, {} }
 router.get('/', async function(req, res, next) {
   const results = await db.query(`
-    SELECT id, comp_code, amt
+    SELECT id, comp_code
       FROM invoices
       ORDER BY id
   `);
@@ -32,10 +32,15 @@ router.get('/:id', async function(req, res, next) {
 
   const iResults = await db.query(`
     SELECT id, amt, paid, add_date, paid_date
-      FROM invoices AS i
-        JOIN companies AS c ON i.comp_code = c.code
+      FROM invoices
       WHERE id = $1
   `, [id]);
+
+  const invoice = iResults.rows[0];
+
+  if (invoice === undefined) {
+    throw new NotFoundError(`No matching invoice: ${id}`)
+  };
 
   const cResults = await db.query(`
     SELECT c.code, c.name, c.description
@@ -45,14 +50,11 @@ router.get('/:id', async function(req, res, next) {
   `, [id]);
 
   const company = cResults.rows[0];
-  const invoice = iResults.rows[0];
+  invoice.company = company;
 
-  if (invoice === undefined) {
-    throw new NotFoundError(`No matching invoice: ${id}`)
-  };
 
-  return res.json({ invoice, company });
 
+  return res.json({ invoice });
 });
 
 
