@@ -37,6 +37,9 @@ router.get('/:code', async function(req, res, next) {
       [code]
   );
 
+  const company = cResults.rows[0];
+  if (company === undefined) throw new NotFoundError(`No matching company: ${code}`);
+
   const iResults = await db.query(`
     SELECT c.code, c.name, c.description, i.id
       FROM invoices AS i
@@ -46,10 +49,8 @@ router.get('/:code', async function(req, res, next) {
   );
 
   const invoices = iResults.rows.map(r => r.id);
-  const company = cResults.rows[0];
   company.invoices = invoices;
 
-  if (company === undefined) throw new NotFoundError(`No matching company: ${code}`);
 
   return res.json({ company });
 
